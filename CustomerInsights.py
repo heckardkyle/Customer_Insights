@@ -50,7 +50,7 @@ clientData_filtered = clientData_raw[clientData_raw['Account_Number']
 clientData_filtered = clientData_filtered.reset_index(drop=True)
 
 # Make copy of filtered data to preprocess
-clientData = clientData = clientData_filtered.copy()
+clientData = clientData_filtered.copy()
 
 print('--client data filtered')
 
@@ -73,9 +73,6 @@ clientData.rename(columns={'Number_of_Appointments': 'Num_Appts'},
 
 # %% Replace colomn 'c_Sex' with new column 'Sex' that uses integers to 
 #    represent client gender
-
-# Rename 'Sex' to 'c_Sex' so that I can reuse 'Sex'
-clientData.rename(columns={'Sex': 'c_Sex'}, inplace=True) # rename
 
 # If sex is M then 1, if F then 2, else nan
 ds = clientData['c_Sex']
@@ -413,8 +410,8 @@ x_train_n, x_test_n, y_train_n, y_test_n = train_test_split(x_n, y_n, test_size=
 x_train_c, x_test_c, y_train_c, y_test_c = train_test_split(x_c, y_c, test_size=0.1, random_state=rs)
 
 # convert to numpy arrays for cross validation
-x_train_n = x_train_n.values # if hasattr(x_train_n, 'values') else x_train_n
-y_train_n = y_train_n.values # if hasattr(y_train_n, 'values') else y_train_n
+x_train_n = x_train_n.values
+y_train_n = y_train_n.values
 
 
 print('--------data split into training and test samples')
@@ -430,10 +427,10 @@ print('---------training data resampled')
 # %% Train and Calibrate RandomForestClassifier Algorithms
 
 # base estimator
-rfc_n = RandomForestClassifier(n_estimators=500, #min_weight_fraction_leaf=0.001,
-                             random_state=rs, class_weight='balanced')
-rfc_c = RandomForestClassifier(n_estimators=500, #min_weight_fraction_leaf=0.001,
-                             random_state=rs, class_weight='balanced')
+rfc_n = RandomForestClassifier(n_estimators=500, random_state=rs, 
+                               class_weight='balanced')
+rfc_c = RandomForestClassifier(n_estimators=500, random_state=rs, 
+                               class_weight='balanced')
 
 # training strategy
 cccv_n = CalibratedClassifierCV(rfc_n, method='sigmoid')
@@ -460,7 +457,7 @@ y_test_proba_c = cccv_c.predict_proba(x_test_c)[:, 1]
 auc_roc_c = roc_auc_score(y_test_c, y_test_proba_c)
 print('Cancellation ' + f'AUC-ROC: {auc_roc_c}')
 
-# %% Get cross-validation scored
+# %% Cross-validate model
 #    Note: using cv=2 to speed up method
 
 # Cross-validation strategy
@@ -499,12 +496,12 @@ for train, test in skf.split(x_train_n, y_train_n):
 # Calculate mean and standard deviation of the AUCs
 mean_tpr_n = np.mean(tprs, axis=0)
 mean_tpr_n[-1] = 1.0
-mean_auc = auc(mean_fpr, mean_tpr_n)
+mean_auc_n = auc(mean_fpr, mean_tpr_n)
 std_auc_n = np.std(aucs)
 
 print(' ')
 print(f'Cross-validated No-Show AUC-ROC scores: {aucs}')
-print(f'Mean No-Show AUC-ROC: {mean_auc}')
+print(f'Mean No-Show AUC-ROC: {mean_auc_n}')
 
 print(' ')
 print('running cross-validation test on Cancellation Model (approximately: 1 minute)')
@@ -538,19 +535,12 @@ for train, test in skf.split(x_train_n, y_train_n):
 # Calculate mean and standard deviation of the AUCs
 mean_tpr_c = np.mean(tprs, axis=0)
 mean_tpr_c[-1] = 1.0
-mean_auc = auc(mean_fpr, mean_tpr_c)
+mean_auc_c = auc(mean_fpr, mean_tpr_c)
 std_auc_c = np.std(aucs)
 
 print(' ')
 print(f'Cross-validated Cancellation AUC-ROC scores: {aucs}')
-print(f'Mean Cancellation AUC-ROC: {mean_auc}')
-
-# %% Choose if we're predicting No_Show or Cancellation
-
-# Options:
-#   1. 'No_Show'
-#   2. 'Cancelled'
-to_predict = 'Cancelled'
+print(f'Mean Cancellation AUC-ROC: {mean_auc_c}')
 
 # %% Get inputs
 
@@ -564,7 +554,8 @@ user_input = {
     'Service' : [rand.randint(1,11)],
     'Length' : [rand.randint(1,3) * 30],
     'Insurance' : [rand.randint(0,1)],
-    to_predict : [0],
+    'No_Show' : [0],
+    'Cancelled' : [0],
     'Zip' : [int(clientData['Zip'].mode()[0])],
     'Sex' : [rand.randint(1,2)],
     'Age' : [rand.randint(18,90)],
@@ -572,50 +563,52 @@ user_input = {
     'Employment' : [rand.randint(1,5)],
     'Accident' : [rand.randint(0,1)],
     }
-
-# %% Display Visualizations based on what prediction we're making
-
-if to_predict == 'No_Show':
-    jd = jdn
-    cccv = cccv_n
-    y_test_proba = y_test_proba_n
-    y_test = y_test_n
-    mean_tpr = mean_tpr_n
-    std_auc = std_auc_n
-    
-if to_predict == 'Cancelled':
-    jd = jdc
-    cccv = cccv_c
-    y_test_proba = y_test_proba_c
-    y_test = y_test_c
-    mean_tpr = mean_tpr_c
-    std_auc = std_auc_c
     
 # %% Make prediction using user_input
 
 # turn input into dataframe
-input_frame = pd.DataFrame(user_input)
+input_frame_n = pd.DataFrame(user_input)
+input_frame_c = pd.DataFrame(user_input)
+
+del input_frame_n['Cancelled']
+del input_frame_c['No_Show']
 
 # normalize input
-input_frame = (input_frame - jd.min()) / (jd.max() - jd.min())
+input_frame_n = (input_frame_n - jdn.min()) / (jdn.max() - jdn.min())
+input_frame_c = (input_frame_c - jdc.min()) / (jdc.max() - jdc.min())
 
 # remove dependency
-del input_frame[to_predict]
+del input_frame_n['No_Show']
+del input_frame_c['Cancelled']
 
 # Make prediction
-predictions = cccv.predict_proba(input_frame)
+prediction_n = cccv_n.predict_proba(input_frame_n)
+prediction_c = cccv_c.predict_proba(input_frame_c)
 print(' ')
-print(f'Chance of {to_predict}: {predictions[0, 1] * 100:.2f}%')
+print(f'Chance of No-Show: {prediction_n[0, 1] * 100:.2f}%')
+print(f'Chance of Cancellation: {prediction_c[0, 1] * 100:.2f}%')
 
 # %% Feature Importance Visualization
 
 # Get Feature importances from estimator (Random Forest)
-importances = cccv.calibrated_classifiers_[0].estimator.feature_importances_
+importances = cccv_n.calibrated_classifiers_[0].estimator.feature_importances_
 indices = np.argsort(importances)
 
 # Create plot
 plt.figure(figsize=(10, 6))
-plt.title('Feature Importances')
+plt.title('Feature Importances for No-Shows')
+plt.barh(range(len(indices)), importances[indices], align='center')
+plt.yticks(range(len(indices)), [x_n.columns[i] for i in indices])
+plt.xlabel('Relative Importance')
+plt.show()
+
+# Get Feature importances from estimator (Random Forest)
+importances = cccv_c.calibrated_classifiers_[0].estimator.feature_importances_
+indices = np.argsort(importances)
+
+# Create plot
+plt.figure(figsize=(10, 6))
+plt.title('Feature Importances for Cancellations')
 plt.barh(range(len(indices)), importances[indices], align='center')
 plt.yticks(range(len(indices)), [x_n.columns[i] for i in indices])
 plt.xlabel('Relative Importance')
@@ -624,24 +617,37 @@ plt.show()
 # %% Distribution of probabilities visualization
 
 # Show distribution of probabilities
-sns.histplot(y_test_proba, kde=True)
-plt.xlabel('Predicted Probability of ' + to_predict)
+sns.histplot(y_test_proba_n, kde=True)
+plt.xlabel('Predicted Probability of No-Shows')
+plt.title('Distribution of Predicted Probabilities')
+plt.show()
+
+# Show distribution of probabilities
+sns.histplot(y_test_proba_c, kde=True)
+plt.xlabel('Predicted Probability of Cancellations')
 plt.title('Distribution of Predicted Probabilities')
 plt.show()
 
 # %% ROC_Curve
 
-# Create Roc_curve
-fpr, tpr, _ = roc_curve(y_test, y_test_proba)
-roc_auc = auc(fpr, tpr)
-
-# Show ROC curve
 plt.figure()
-plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {roc_auc:.2f})')
-plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
 
-# plot the mean cross-validation roc curve
-plt.plot(mean_fpr, mean_tpr, color='blue', lw=2, linestyle='-', label=f'Mean CV ROC curve (area = {mean_auc:.2f} ± {std_auc:.2f})')
+# Plot No-Show Roc_curve
+fpr, tpr, _ = roc_curve(y_test_n, y_test_proba_n)
+roc_auc = auc(fpr, tpr)
+plt.plot(fpr, tpr, color='red', lw=2, label=f'No-Show ROC curve (area = {roc_auc:.2f})')
+
+# Plot Cancellation Roc_curce
+fpr, tpr, _ = roc_curve(y_test_c, y_test_proba_c)
+roc_auc = auc(fpr, tpr)
+plt.plot(fpr, tpr, color='aqua', lw=2, label=f'Cancellation ROC curve (area = {roc_auc:.2f})')
+
+# Plot Cross-validation Roc_curves
+plt.plot(mean_fpr, mean_tpr_n, color='blue', lw=2, linestyle='-', label=f'Mean CV ROC curve (area = {mean_auc_n:.2f} ± {std_auc_n:.2f})')
+plt.plot(mean_fpr, mean_tpr_c, color='purple', lw=2, linestyle='-', label=f'Mean CV ROC curve (area = {mean_auc_c:.2f} ± {std_auc_c:.2f})')
+
+# Plot line of no-discrimination
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
 
 # build plot
 plt.xlim([0.0, 1.0])
@@ -662,7 +668,8 @@ custom_labels = ['Completed Appointments', 'Cancelled Appointments', 'No-Shows']
 
 # Set up plot
 plt.figure(figsize=(8,8))
-status_counts.plot.pie(labels=custom_labels, autopct='%1.1f%%', startangle=90, colors=['lightgreen', 'skyblue', 'lightcoral'])
+status_counts.plot.pie(labels=custom_labels, autopct='%1.1f%%', startangle=90, 
+                       colors=['lightgreen', 'skyblue', 'lightcoral'])
 plt.title('Appointment Status Distribution')
 plt.ylabel('')  # Hide the y-label
 plt.show()
@@ -697,11 +704,13 @@ labels = ['1-10', '11-20', '21-30', '31-40', '41-50',
 df['Age_Group'] = pd.cut(df['Age'], bins=bins, labels=labels, right=False)
 
 # Count the occurrences of each status within each age bucket
-age_status_counts = df.groupby(['Age_Group', 'Status'], observed=False).size().reset_index(name='Count')
+age_status_counts = df.groupby(['Age_Group', 'Status'], 
+                               observed=False).size().reset_index(name='Count')
 
 # Plot the bar chart
 plt.figure(figsize=(12, 8))
-sns.barplot(data=age_status_counts, x='Age_Group', y='Count', hue='Status', palette='viridis')
+sns.barplot(data=age_status_counts, x='Age_Group', y='Count', 
+            hue='Status', palette='viridis')
 plt.xlabel('Age Group')
 plt.ylabel('Number of Appointments')
 plt.title('Appointment Status by Age Group')
