@@ -4,21 +4,7 @@ import importlib.util
 import subprocess
 import sys
 from IPython.display import clear_output
-import pandas as pd
-import warnings as warn
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import StratifiedKFold
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import roc_auc_score
-from sklearn.metrics import roc_curve
-from sklearn.metrics import auc
-from sklearn.calibration import CalibratedClassifierCV
-from datetime import datetime
-from imblearn.combine import SMOTETomek
-import random as rand
+from IPython.display import display
 
 #################################################
 #################################################
@@ -45,6 +31,24 @@ install_and_import('imblearn')
 clear_output()
 print('Finished installing packages')
 print(' ')
+
+import ipywidgets as widgets
+import pandas as pd
+import warnings as warn
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_curve
+from sklearn.metrics import auc
+from sklearn.calibration import CalibratedClassifierCV
+from datetime import datetime
+from imblearn.combine import SMOTETomek
+import random as rand
+
 print('Training Data')
 
 ############################################
@@ -570,14 +574,147 @@ print(f'Mean Cancellation AUC-ROC: {mean_auc_c}')
 
 clear_output()
 print('Machine-learning Model Trained')
+print(' ')
+print(' ')
+print(' ')
 
-# UserInput.py
+###########################################
+###########################################
+### Make Predictions and display graphs ###
+###########################################
+###########################################
 
-import ipywidgets as widgets
-from IPython.display import display, clear_output
-from datetime import datetime
-import pandas as pd
+def plot_importance_viz1():
+    # Get Feature importances from estimator (Random Forest)
+    importances = cccv_n.calibrated_classifiers_[0].estimator.feature_importances_
+    indices = np.argsort(importances)
+    
+    # Create plot
+    plt.figure(figsize=(10, 6))
+    plt.title('Feature Importances for No-Shows')
+    plt.barh(range(len(indices)), importances[indices], align='center')
+    plt.yticks(range(len(indices)), [x_n.columns[i] for i in indices])
+    plt.xlabel('Relative Importance')
+    plt.show()
 
+def plot_importance_viz2():
+    # Get Feature importances from estimator (Random Forest)
+    importances = cccv_c.calibrated_classifiers_[0].estimator.feature_importances_
+    indices = np.argsort(importances)
+    
+    # Create plot
+    plt.figure(figsize=(10, 6))
+    plt.title('Feature Importances for Cancellations')
+    plt.barh(range(len(indices)), importances[indices], align='center')
+    plt.yticks(range(len(indices)), [x_n.columns[i] for i in indices])
+    plt.xlabel('Relative Importance')
+    plt.show()
+
+def plot_proba_dist1():
+    # Show distribution of probabilities
+    sns.histplot(y_test_proba_n, kde=True)
+    plt.xlabel('Predicted Probability of No-Shows')
+    plt.title('Distribution of Predicted Probabilities for No-Shows')
+    plt.show()
+
+def plot_proba_dist2():
+    # Show distribution of probabilities
+    sns.histplot(y_test_proba_c, kde=True)
+    plt.xlabel('Predicted Probability of Cancellations')
+    plt.title('Distribution of Predicted Probabilities for Cancellations')
+    plt.show()
+
+def plot_roc_curves():
+    plt.figure()
+
+    # Plot No-Show Roc_curve
+    fpr, tpr, _ = roc_curve(y_test_n, y_test_proba_n)
+    roc_auc = auc(fpr, tpr)
+    plt.plot(fpr, tpr, color='red', lw=2, label=f'No-Show ROC curve (area = {roc_auc:.2f})')
+    
+    # Plot Cancellation Roc_curce
+    fpr, tpr, _ = roc_curve(y_test_c, y_test_proba_c)
+    roc_auc = auc(fpr, tpr)
+    plt.plot(fpr, tpr, color='aqua', lw=2, label=f'Cancellation ROC curve (area = {roc_auc:.2f})')
+    
+    # Plot Cross-validation Roc_curves
+    plt.plot(mean_fpr, mean_tpr_n, color='blue', lw=2, linestyle='-', label=f'Mean CV ROC curve (area = {mean_auc_n:.2f} ± {std_auc_n:.2f})')
+    plt.plot(mean_fpr, mean_tpr_c, color='purple', lw=2, linestyle='-', label=f'Mean CV ROC curve (area = {mean_auc_c:.2f} ± {std_auc_c:.2f})')
+    
+    # Plot line of no-discrimination
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+    
+    # build plot
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic')
+    plt.legend(loc='lower right')
+    plt.show()
+
+def plot_status_viz():
+    # Get counts of each status
+    status_counts = appointmentData['Status'].value_counts()
+    
+    # Create custom labels
+    custom_labels = ['Completed Appointments', 'Cancelled Appointments', 'No-Shows']
+    
+    # Set up plot
+    plt.figure(figsize=(8,8))
+    status_counts.plot.pie(labels=custom_labels, autopct='%1.1f%%', startangle=90, 
+                           colors=['lightgreen', 'skyblue', 'lightcoral'])
+    plt.title('Appointment Status Distribution')
+    plt.ylabel('')  # Hide the y-label
+    plt.show()
+
+def plot_zip_codes_viz():
+    # Get zip code counts
+    zip_counts = clientData['Zip'].astype(int).value_counts()
+    top_15 = zip_counts.nlargest(15)
+    Other = zip_counts.iloc[15:].sum()
+    top_15['Other'] = Other
+    
+    # Set up plot
+    plt.figure(figsize=(10, 6))
+    top_15.plot(kind='bar', color='skyblue')
+    plt.xlabel('Zip Code')
+    plt.ylabel('Frequency')
+    plt.title('Zip Codes with Highest Value Counts')
+    plt.xticks(rotation=45)
+    plt.show()
+
+def plot_status_age_groups():
+    # Put Status back in Joined Data
+    joinedData.insert(0, 'Status', status)
+    df = joinedData
+    
+    # Create age buckets
+    bins = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    labels = ['1-10', '11-20', '21-30', '31-40', '41-50',
+              '51-60', '61-70', '71-80', '81-90', '91-100']
+    df['Age_Group'] = pd.cut(df['Age'], bins=bins, labels=labels, right=False)
+    
+    # Count the occurrences of each status within each age bucket
+    age_status_counts = df.groupby(['Age_Group', 'Status'], 
+                                   observed=False).size().reset_index(name='Count')
+    
+    # Plot the bar chart
+    plt.figure(figsize=(12, 8))
+    sns.barplot(data=age_status_counts, x='Age_Group', y='Count', 
+                hue='Status', palette='viridis')
+    plt.xlabel('Age Group')
+    plt.ylabel('Number of Appointments')
+    plt.title('Appointment Status by Age Group')
+    plt.xticks(rotation=45)
+    
+    # Change Key names in legend
+    new_labels = ['Completed Appointments', 'Cancelled Appointments', 'No-Shows']
+    handles, labels = plt.gca().get_legend_handles_labels()
+    plt.legend(handles, new_labels, title='Appointment Status')
+    
+    plt.show()
+    
 # find length of service
 def in_find_length(value):
     try:
@@ -613,7 +750,7 @@ def in_find_insurance(value):
 def update_zip_input(change):
     zip_input.disabled = change['new']
 
-# Function to make predictions
+# Function to make predictions and reveal tabs
 def make_prediction(button):
     # get non-date inputs
     in_practitioner = practitioner_input.value
@@ -629,29 +766,29 @@ def make_prediction(button):
 
     # If not selected, fill with modes
     if in_practitioner == 0:
-        print('pract')
+        in_practitioner = int(joinedData['Practitioner'].mode()[0])
     if in_service == -1:
-        in_service = 1
-        print('serv')
+        in_service = int(joinedData['Service'].mode()[0])
     if ignore_zip.value == True:
-        print('zip')
+        in_zip = int(joinedData['Zip'].mode()[0])
     if in_sex == 0:
-        print('sex')
+        in_sex = int(joinedData['Sex'].mode()[0])
     if in_age == 0:
-        print('age')
+        in_age = int(joinedData['Age'].mode()[0])
     if in_marital == 0:
-        print('marital')
+        in_marital = int(joinedData['Marital'].mode()[0])
     if in_employment == 0:
-        print('employment')
+        in_employment = int(joinedData['Employment'].mode()[0])
     if in_accident == -1:
-        print('accident')
+        in_accident = int(joinedData['Accident'].mode()[0])
 
+    # if date is none fill with modes, else convert to timestamp
     if in_date is None:
-        print('date')
-        in_quarter = 0
-        in_month = 0
-        in_day_of_week = 0
+        in_quarter = int(joinedData['Quarter'].mode()[0])
+        in_month = int(joinedData['Month'].mode()[0])
+        in_day_of_week = int(joinedData['Day_of_Week'].mode()[0])
     else:
+        # convert to timestamp
         in_date = pd.to_datetime(in_date, format='%m/%d/%Y')
     
         # extract quarter, month and dayofweek
@@ -659,7 +796,7 @@ def make_prediction(button):
         in_month = in_date.month
         in_day_of_week = in_date.day_name()
     
-        # convert dayofweektointeger
+        # convert dayofweek to integer
         if in_day_of_week == 'Sunday':
             in_day_of_week = 0
         if in_day_of_week == 'Monday':
@@ -675,58 +812,56 @@ def make_prediction(button):
         if in_day_of_week == 'Saturday':
             in_day_of_week = 6
 
+    # Calculate based on service chosen
     in_length = in_find_length(in_service)
     in_insurance = in_find_insurance(in_service)
 
-    no_show_output.value = 'yay'
-    cancellation_output.value = 'yay'
+    # Create a user_input array
+    user_input = {
+        'Practitioner' : [in_practitioner],
+        'Quarter' : [in_quarter],
+        'Month' : [in_month],
+        'Day_of_Week' : [in_day_of_week],
+        'Hour' : [in_hour],
+        'Service' : [in_service],
+        'Length' : [in_length],
+        'Insurance' : [in_insurance],
+        'No_Show' : [0],
+        'Cancelled' : [0],
+        'Zip' : [in_zip],
+        'Sex' : [in_sex],
+        'Age' : [in_age],
+        'Marital' : [in_marital],
+        'Employment' : [in_employment],
+        'Accident' : [in_accident],
+    }
 
+    # Turn array into data frame
+    input_frame_n = pd.DataFrame(user_input)
+    input_frame_c = pd.DataFrame(user_input)
+
+    # Remove opposite column from prediction to make
+    del input_frame_n['Cancelled']
+    del input_frame_c['No_Show']
+    
+    # normalize inputs
+    input_frame_n = (input_frame_n - jdn.min()) / (jdn.max() - jdn.min())
+    input_frame_c = (input_frame_c - jdc.min()) / (jdc.max() - jdc.min())
+    
+    # remove dependencies
+    del input_frame_n['No_Show']
+    del input_frame_c['Cancelled']
+    
+    # Make predictions
+    prediction_n = cccv_n.predict_proba(input_frame_n)
+    prediction_c = cccv_c.predict_proba(input_frame_c)
+
+    # Display predictions
+    no_show_output.value = f'Chance of No-Show: {prediction_n[0, 1] * 100:.2f}%'
+    cancellation_output.value = f'Chance of Cancellation: {prediction_c[0, 1] * 100:.2f}%'
+
+    # Show tab widget containing plots
     tab_widget.layout.display = 'block'  # Hide the tab widget initially
-
-'''
-# Example prediction function
-def make_prediction(input_value):
-    # Replace this with your actual prediction logic
-    return f"Predicted value for {input_value}: {input_value * 2}"
-
-# Function to handle button click
-def on_button_click(b):
-    input_value = input_widget.value
-    prediction = make_prediction(input_value)
-    output_widget.value = prediction  # Update the output widget with the prediction
-    tab_widget.layout.display = 'block'  # Show the tab widget
-
-    # Update tab content with prediction information
-    tab_contents[0].children = [widgets.Label(value=prediction)]
-    tab_contents[1].children = [widgets.Label(value=f"Additional info for {input_value}...")]
-
-# Create input widget
-input_widget = widgets.FloatText(
-    description='Input:',
-    value=0.0
-)
-
-# Create button widget
-predict_button = widgets.Button(
-    description='Make Prediction'
-)
-
-# Create output widget to display prediction
-output_widget = widgets.Label(value='')
-
-# Create tab widget
-tab_contents = [widgets.VBox([]), widgets.VBox([])]  # Two tabs for different information
-tab_widget = widgets.Tab(children=tab_contents)
-tab_widget.set_title(0, 'Prediction Info')
-tab_widget.set_title(1, 'Additional Info')
-tab_widget.layout.display = 'none'  # Hide the tab widget initially
-
-# Link button click event to the function
-predict_button.on_click(on_button_click)
-
-# Display the widgets
-display(input_widget, predict_button, output_widget, tab_widget)
-'''
 
 # Choice box inputs
 practitioners = [('-', 0),
@@ -861,7 +996,7 @@ column3 = widgets.VBox([empty_label3,
                        ignore_zip
                       ])
 
-# Create a divider with a fixed width
+# Create a dividers with a fixed width to make form more pleasant
 vertical_divider = widgets.VBox(layout=widgets.Layout(width='60px'))
 horizontal_divider1 = widgets.HBox(layout=widgets.Layout(height='30px'))
 horizontal_divider2 = widgets.HBox(layout=widgets.Layout(height='30px'))
@@ -876,13 +1011,159 @@ inputs_layout = widgets.VBox([column_layout,
                               horizontal_divider2
                              ])
 
-tab_contents = [widgets.VBox([]), widgets.VBox([])]  # Two tabs for different information
-tab_widget = widgets.Tab(children=tab_contents)
-tab_widget.set_title(0, 'Prediction Info')
-tab_widget.set_title(1, 'Additional Info')
-tab_widget.layout.display = 'none'  # Hide the tab widget initially
+
+# When prediction is clicked, call function
+predict_button.on_click(make_prediction)
 
 # Display Layouts
-display(inputs_layout,tab_widget)
+display(inputs_layout)
 
-predict_button.on_click(make_prediction)
+# Tab headers
+tab_contents = ['Feature Importance',
+                'Distribution of Probabilities',
+                'ROC Curves',
+                'Appointment Status Visualization',
+                'Client Zip Code Distribution',
+                'Appointment Status by Age Group']
+
+# Output widgets
+children = [widgets.Output() for _ in tab_contents]  # Create output widgets for each tab
+
+# Build tab widget and name tabs
+tab_widget = widgets.Tab()
+tab_widget.children = children
+for i in range(len(tab_contents)):
+    tab_widget.set_title(i, tab_contents[i])
+
+# Build feature importance tab
+with children[0]:
+    feature_importance_hbox = widgets.HBox([widgets.Output(), widgets.Output()])
+    feature_importance_description = widgets.HTML("<p>These plots show what features are most important when " +
+                                                  "predicting No-Shows and Cancellations.<br>" +
+                                                  "By looking at the data, we can see that the client's location " +
+                                                  "of residence, as well as the date and time the appointment was " +
+                                                  "placed are the most critical factors when predicting No-Shows " +
+                                                  "and Cancellations.<br>" +
+                                                  "This disproves our hypothesis that age is the most critical " +
+                                                  "factor when determining the likelihood of a No-Show or " +
+                                                  "Cancellation.<br>" +
+                                                  "We may be able to infer from this data, specifically from the " +
+                                                  "importance of zip code, that socio-economic factors are " +
+                                                  "influencing the likelihood of a No-Show or Cancellation.</p>"
+                                                 )
+    feature_importance_vbox = widgets.VBox([feature_importance_hbox, feature_importance_description])
+
+    # Display the feature importance VBox
+    display(feature_importance_vbox)
+
+    # Call plots into HBox
+    with feature_importance_hbox.children[0]:
+        plot_importance_viz1()
+    with feature_importance_hbox.children[1]:
+        plot_importance_viz2()
+
+# Build Distribution of Probabilities tab
+with children[1]:
+    proba_dist_hbox = widgets.HBox([widgets.Output(), widgets.Output()])
+    proba_dist_description = widgets.HTML("<p>These plots show the distribution of predictions from when the " +
+                                          "machine-learning model was trained.<br>" +
+                                          "We can see that, for the No-Shows plot, most predictions are 4% or " +
+                                          "less, while in the Cancellations plot, most of the predictions " +
+                                          "are 20% or less.</p>"
+                                         )
+    proba_dist_vbox = widgets.VBox([proba_dist_hbox, proba_dist_description])
+
+    # Display the probability distribution VBox
+    display(proba_dist_vbox)
+
+    # Call plots into HBox
+    with proba_dist_hbox.children[0]:
+        plot_proba_dist1()
+    with proba_dist_hbox.children[1]:
+        plot_proba_dist2()
+
+# Build ROC Curves Tab
+with children[2]:
+    roc_description = widgets.HTML("<p>This plot shows four Reciever operating characteristic (ROC) curves.<br>" +
+                                   "The ROC curve helps show us the accuracy of our classification model.<br>" +
+                                   "The curve measures our models to correctly predict, in this case, whether " +
+                                   "or not, the client will No-show or cancel an appointment.<br>" +
+                                   "This is measured as true positive rates (TPRs) over one minus false " +
+                                   "positive rates.<br>" +
+                                   "<br>" +
+                                   "There are four curves on this plot.<br>" +
+                                   "The first two curves, closer to the neutral line, are the predictions made " +
+                                   "before cross-validating the model.<br>" +
+                                   "The other two curves, are from after cross-validation (One curve is lying " +
+                                   "underneath the other).<br>" +
+                                   "<br>" +
+                                   "This plot shows the importance of cross-validation when making predictions, " +
+                                   "especially when working on a small dataset like this one.</p>"
+                                  )
+    roc_vbox = widgets.VBox([widgets.Output(), roc_description])
+
+    # Display the ROC Curves VBox
+    display(roc_vbox)
+
+    # Call plot into VBox
+    with roc_vbox.children[0]:
+        plot_roc_curves()
+
+# Build Appointment Status Viz Tab
+with children[3]:
+    status_description = widgets.HTML("<p>This pie graph shows the distribution of No-Shows and Cancellations " +
+                                      "compared to completed appointments.<br>" +
+                                      "We can see that about a fifth of appointments are No-Showed or canceled.<br>" +
+                                      "We also see four times as many cancellations as No-Shows.<br>" +
+                                      "While the original intention of this application was to help develop " +
+                                      "business strategies to reduce No-Shows, it might be wise to steer focus " +
+                                      "toward cancellations.</p>"
+                                     )
+    status_vbox = widgets.VBox([widgets.Output(), status_description])
+
+    # Display the Appointment Status distribution VBox
+    display(status_vbox)
+
+    # Call plot into VBox
+    with status_vbox.children[0]:
+        plot_status_viz()
+
+# Build Zip Code Distribution Tab
+with children[4]:
+    zip_description = widgets.HTML("<p>After learning that the client's zip code of residence was the most " +
+                                   "important factor when predicting the chance of a No-Show or cancellations, " +
+                                   "this plot was added to give some insight on what locations most clients " +
+                                   "reside in.</p>"
+                                  )
+    zip_vbox = widgets.VBox([widgets.Output(), zip_description])
+
+    # Display the Zip distribution VBox
+    display(zip_vbox)
+
+    # Call plot into VBox
+    with zip_vbox.children[0]:
+        plot_zip_codes_viz()
+
+# Build Status by Age Group Viz tab
+with children[5]:
+    age_stat_description = widgets.HTML("<p>This histogram shows the status distribution of appointments by " +
+                                        "age group.<br>" +
+                                        "We can see from this plot that most of the clients are of retirement " +
+                                        "and that these same clients are the least likely to No-Show or Cancel " +
+                                        "their appointments.<br>" +
+                                        "While this information may not be as important as Zip Codes, it does " +
+                                        "provide valuable useable information on the clientele.</p>"
+                                       )
+    age_stat_vbox = widgets.VBox([widgets.Output(), age_stat_description])
+
+    # Display the Status by Age Group VBox
+    display(age_stat_vbox)
+
+    # Call plot into VBox
+    with age_stat_vbox.children[0]:
+        plot_status_age_groups()
+
+display(tab_widget)
+
+# Hide tab widget until called after making a prediction
+tab_widget.layout.display = 'none'  # Hide the tab widget initially
